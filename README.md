@@ -20,75 +20,104 @@ the dataset
 11. Also perform exponential smoothing and plot the graph
 ### PROGRAM:
 ```
-import numpy as np
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
-from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-from statsmodels.tsa.ar_model import AutoReg
-from sklearn.metrics import mean_squared_error
 
-data = pd.read_csv("/content/BTC-USD(1).csv")
-print("Shape of the dataset:", data.shape)
-print("First 50 rows of the dataset:")
-print(data.head(50))
+# Load the dataset
+file_path = '/content/BTC-USD(1).csv'
+data = pd.read_csv(file_path)
 
-plt.plot(data['Close'].head(50))  
-plt.title('First 50 values of the "Close" column') # Change: title to reflect the correct column
-plt.xlabel('Index')
-plt.ylabel('Close') # Change: y-axis label
-plt.show()
+# Convert 'Date' to datetime
+data['Date'] = pd.to_datetime(data['Date'])
 
-rolling_mean_5 = data['Close'].rolling(window=5).mean() 
-print("First 10 values of the rolling mean with window size 5:")
-print(rolling_mean_5.head(10))
+# Set 'Date' as the index
+data.set_index('Date', inplace=True)
 
-rolling_mean_10 = data['Close'].rolling(window=10).mean()  
-plt.plot(data['Close'], label='Original Data')  
-plt.plot(rolling_mean_10, label='Rolling Mean (window=10)')  
-plt.title('Original Data and Fitted Value (Rolling Mean)')
-plt.xlabel('Index')
-plt.ylabel('Close')  # Change: y-axis label
-plt.legend()
-plt.show()
+#Resample to monthly averages for 'Close' column, which represents Bitcoin prices
+monthly_data = data['Close'].resample('M').mean()
 
-lag_order = 13
-# Change: Replace 'International ' with 'Close' in AutoReg model
-model = AutoReg(data['Close'], lags=lag_order)  
-model_fit = model.fit()
+# Drop any NaN values
+monthly_data = monthly_data.dropna()
 
-plot_acf(data['Close'])  
+# --- 1. ACF and PACF Plots ---
+# ... (rest of your code remains the same, but using 'monthly_data')
+
+# Plot ACF
+plt.figure(figsize=(10, 6))
+plot_acf(monthly_data, lags=20)
 plt.title('Autocorrelation Function (ACF)')
 plt.show()
 
-plot_pacf(data['Close'])  
+# Plot PACF
+plt.figure(figsize=(10, 6))
+plot_pacf(monthly_data, lags=20)
 plt.title('Partial Autocorrelation Function (PACF)')
 plt.show()
 
-predictions = model_fit.predict(start=lag_order, end=len(data)-1)  
-mse = mean_squared_error(data['Close'][lag_order:], predictions)  
-print('Mean Squared Error (MSE):', mse)
+# --- 2. Moving Average Model (MA) ---
 
-plt.plot(data['Close'][lag_order:], label='Original Data')  
-plt.plot(predictions, label='Predictions')
-plt.title('AR Model Predictions vs Original Data')
-plt.xlabel('Index')
-plt.ylabel('Close')  # Change: y-axis label
-plt.legend()
+# Fit the MA model (order q=2, for instance)
+ma_model = ARIMA(monthly_data, order=(0, 0, 2)).fit()
+
+# Make predictions for the last 12 months
+ma_predictions = ma_model.predict(start=len(monthly_data) - 12, end=len(monthly_data) - 1)
+
+# Plot the Moving Average Model predictions
+plt.figure(figsize=(10, 6))
+plt.plot(monthly_data, label='Original Data', color='blue')
+plt.plot(ma_predictions, label='MA Model Predictions', color='green')
+plt.title('Moving Average (MA) Model Predictions')
+plt.legend(loc='best')
 plt.show()
+
+# --- 3. Plot Transformed Dataset ---
+
+# Apply log transformation to the dataset (to make trends more visible)
+transformed_data = np.log(monthly_data)
+
+# Plot the transformed dataset
+plt.figure(figsize=(10, 6))
+plt.plot(transformed_data, label='Log-Transformed Data', color='purple')
+plt.title('Log-Transformed Monthly Average Prices')
+plt.xlabel('Date')
+plt.ylabel('Log(Average Price)')
+plt.legend(loc='best')
+plt.show()
+
+# --- 4. Exponential Smoothing ---
+
+# Fit the Exponential Smoothing model (with trend and seasonal components)
+exp_smoothing_model = ExponentialSmoothing(monthly_data, trend='add', seasonal='add', seasonal_periods=12).fit()
+
+# Make predictions for the next 12 months
+exp_smoothing_predictions = exp_smoothing_model.forecast(12)
+
+# Plot the Exponential Smoothing predictions
+plt.figure(figsize=(10, 6))
+plt.plot(monthly_data, label='Original Data', color='blue')
+plt.plot(exp_smoothing_predictions, label='Exponential Smoothing Forecast', color='red')
+plt.title('Exponential Smoothing Forecast')
+plt.legend(loc='best')
+plt.show()
+
 ```
 ### OUTPUT:
-
-#### Plot the original data and fitted value
-
-![download](https://github.com/user-attachments/assets/48eecb99-7964-4f66-b9e6-90c80765f03d)
+#### Moving Average
+![download](https://github.com/user-attachments/assets/6bcf69cd-ca4f-4e42-ba89-69af2cdb9881)
 
 #### Plot Partial Autocorrelation Function (PACF) and Autocorrelation Function (ACF)
-![download](https://github.com/user-attachments/assets/430a8371-a3a9-48eb-ac83-2f8dc78884f9)
-![download](https://github.com/user-attachments/assets/01313652-9dd9-4388-8ba5-e94cf490da22)
+![download](https://github.com/user-attachments/assets/9c485fab-7d77-4150-985a-4942e035bacf)
+![download](https://github.com/user-attachments/assets/a01be1d8-35ea-47b3-ac58-a3545b35ec09)
 
-#### Plot the original data and predictions
-![download](https://github.com/user-attachments/assets/532f7d96-6ccf-4861-b146-b7a39d8be522)
+#### Log-Transformed 
+![download](https://github.com/user-attachments/assets/be7a2dec-abd1-4dd0-bb9a-29f8cf3fbe8a)
+
+#### Exponential Smoothing Forecast
+![download](https://github.com/user-attachments/assets/4cd55122-55db-4658-b209-8396030102b2)
 
 ### RESULT:
 Thus we have successfully implemented the Moving Average Model and Exponential smoothing using python.
